@@ -45,14 +45,14 @@ class Operator:
         self.reset = reset_fn
 
 OpCreator = Callable[[Operator], Operator]
-DblOpCreator = Callable[[Operator], (Operator, Operator)]
+DblOpCreator = Callable[[Operator], tuple[Operator, Operator]]
 
 
 def chain(op_creator: OpCreator, nxt: Operator) -> Operator:
     """ Right‐associate an OpCreator with the next operator """
     return op_creator(nxt)
 
-def chain2(op_creator: DblOpCreator, op: Operator) -> (Operator, Operator):
+def chain2(op_creator: DblOpCreator, op: Operator) -> tuple[Operator, Operator]:
     return op_creator(op)
 
 # ------------------------------------------------------------------------------
@@ -695,7 +695,7 @@ def slowloris(next_op: Operator) -> List[Operator]:
             )
         )
 
-    pipeline = chain(
+    pipeline = chain(chain(
         map_op(lambda t: {
             **t,
             "bytes_per_conn": IntResult(
@@ -703,7 +703,7 @@ def slowloris(next_op: Operator) -> List[Operator]:
             )
         }),
         filter_op(lambda t: lookup_int("bytes_per_conn", t) <= t3)
-    )(next_op)
+    ),next_op)
 
     join_creator = join_op(
         lambda t: (filter_groups(["ipv4.dst"], t),
@@ -774,26 +774,26 @@ def q4(next_op: Operator) -> Operator:
 # ------------------------------------------------------------------------------
 
 queries: List[Operator] = [
-    ident(dump_tuple_op(sys.stdout)),
-    count_pkts(dump_tuple_op(sys.stdout)),
-    pkts_per_src_dst(dump_tuple_op(sys.stdout)),
-    distinct_srcs(dump_tuple_op(sys.stdout)),
-    tcp_new_cons(dump_tuple_op(sys.stdout)),
-    ssh_brute_force(dump_tuple_op(sys.stdout)),
-    super_spreader(dump_tuple_op(sys.stdout)),
-    port_scan(dump_tuple_op(sys.stdout)),
-    ddos(dump_tuple_op(sys.stdout)),
-] + syn_flood_sonata(dump_tuple_op(sys.stdout)) \
-  + completed_flows(dump_tuple_op(sys.stdout)) \
-  + slowloris(dump_tuple_op(sys.stdout)) \
-  + join_test(dump_tuple_op(sys.stdout)) \
-  + [
-      q3(dump_tuple_op(sys.stdout)),
-      q4(dump_tuple_op(sys.stdout)),
+    # ident(dump_tuple_op(sys.stdout)),
+    # count_pkts(dump_tuple_op(sys.stdout)),
+    # pkts_per_src_dst(dump_tuple_op(sys.stdout)),
+    # distinct_srcs(dump_tuple_op(sys.stdout)),
+    # tcp_new_cons(dump_tuple_op(sys.stdout)),
+    # ssh_brute_force(dump_tuple_op(sys.stdout)),
+    # super_spreader(dump_tuple_op(sys.stdout)),
+    # port_scan(dump_tuple_op(sys.stdout)),
+    # ddos(dump_tuple_op(sys.stdout)),
+#   *syn_flood_sonata(dump_tuple_op(sys.stdout)) \
+#   *completed_flows(dump_tuple_op(sys.stdout)) \
+#   *slowloris(dump_tuple_op(sys.stdout)) \
+#   join_test(dump_tuple_op(sys.stdout)) \
+#   
+    #   q3(dump_tuple_op(sys.stdout)),
+    #   q4(dump_tuple_op(sys.stdout)),
   ]
 
 def run_queries():
-    for i in range(20):
+    for i in range(5):
         base = {
             "time": FloatResult(float(i)),
             "eth.src": MACResult(b"\x00\x11\x22\x33\x44\x55"),

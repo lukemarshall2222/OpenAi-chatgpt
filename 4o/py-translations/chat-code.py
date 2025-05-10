@@ -1,6 +1,5 @@
-from typing import Callable, Dict, Optional, List, Tuple as PyTuple, Union, Any
+from typing import Callable, Dict, Optional, List, Tuple as PyTuple
 from ipaddress import IPv4Address
-import struct
 import sys
 
 # Define op_result
@@ -587,11 +586,11 @@ def q4(next_op: Operator) -> Operator:
     )
 
 
-queries: List[Operator] = [ident(dump_tuple_op(out=sys.stdout))]
+queries: List[Operator] = [q4(dump_tuple_op(out=sys.stdout))]
 
 def run_queries():
     dummy_tuples = []
-    for i in range(20):
+    for i in range(5):
         tup = {
             "time": FloatOp(0.0 + i),
             "eth.src": MACOp(bytes.fromhex("001122334455")),

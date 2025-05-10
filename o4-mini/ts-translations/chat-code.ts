@@ -138,9 +138,9 @@ export function dumpOperator(
 
 /** CSV-style dump (assumes same fields/order) */
 export function dumpAsCsv(
-  staticField?: [string,string],
   header: boolean = true,
-  outc: Writable
+  outc: Writable,
+  staticField?: [string,string],
 ): Operator {
   let first = header;
   return {
@@ -610,9 +610,7 @@ export function distinctSrcs(nextOp: Operator): Operator {
 // Main harness
 // -----------------------------------------------------------------------------
 
-export const queries: Operator[] = [
-  ident(dumpOperator(false, process.stdout))
-];
+
 
 // Sonata 1
 export function tcpNewCons(nextOp: Operator): Operator {
@@ -857,7 +855,7 @@ export function tcpNewCons(nextOp: Operator): Operator {
           tup => getMappedInt('ipv4.proto', tup) === 6,
           groupBy(
             t => filterGroups(['ipv4.dst'], t),
-            sumInts('ipv4.len'),
+            (acc: OpResult, t: Tuple) => sumInts('ipv4.len', acc, t),
             'n_bytes',
             filterOp(
               tup => getMappedInt('n_bytes', tup) >= t2,
@@ -973,6 +971,10 @@ export function runQueries(): void {
     t.set('l4.flags',    { type:'Int',   value: 10 });
     return t;
   });
+
+  const queries: Operator[] = [
+    ident(dumpOperator(false, process.stdout))
+  ];
 
   for (const tup of tuples) {
     for (const q of queries) {

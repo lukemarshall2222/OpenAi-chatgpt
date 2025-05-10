@@ -213,7 +213,7 @@ function distinct(groupby: (t: Tuple) => Tuple): OpCreator {
 
   return (nextOp) => ({
     next: (tup) => {
-      const key = groupingFunc(tup);
+      const key = groupby(tup);
       table.add(tupleKey(key));
     },
     reset: (tup) => {
@@ -228,22 +228,6 @@ function distinct(groupby: (t: Tuple) => Tuple): OpCreator {
     }
   });
 }
-
-// ===============================================
-// Example Query Setup
-// ===============================================
-
-const queries: Operator[] = [
-  chain(
-    map((tup) => {
-      const filtered = new Map(tup);
-      filtered.delete("eth.src");
-      filtered.delete("eth.dst");
-      return filtered;
-    }),
-    dumpTuple()
-  )
-];
 
 function split(left: Operator, right: Operator): Operator {
     return {
@@ -365,36 +349,8 @@ function join(
     return (nextOp) => [leftOp(nextOp), rightOp(nextOp)];
 }
 
-function countPkts(): OpCreator {
-    return (nextOp) =>
-        chain(
-            epoch(1.0, "eid"),
-            chain(
-                groupby(singleGroup, counter, "pkts"),
-                nextOp
-            )
-        );
-}
-
 function singleGroup(_: Tuple): Tuple {
     return new Map();
-}
-
-function ddos(): OpCreator {
-    return (nextOp) =>
-        chain(
-            epoch(1.0, "eid"),
-            chain(
-                distinct(filterGroups(["ipv4.src", "ipv4.dst"])),
-                chain(
-                    groupby(filterGroups(["ipv4.dst"]), counter, "srcs"),
-                    chain(
-                        filter(keyGeqInt("srcs", 45)),
-                        nextOp
-                    )
-                )
-            )
-        );
 }
 
 function renameFilteredKeys(renamePairs: [string, string][], tup: Tuple): Tuple {
@@ -545,80 +501,89 @@ function ddos(): OpCreator {
         );
 }
 
-function synFloodSonata(): (nextOp: Operator) => Operator[] {
-    return (nextOp) => {
-        const syns = (nextOp2: Operator) =>
-            chain(
-                epoch(1.0, "eid"),
-                chain(
-                    filter(tup => lookupInt("ipv4.proto", tup) === 6 && lookupInt("l4.flags", tup) === 2),
-                    chain(
-                        groupby(filterGroups(["ipv4.dst"]), counter, "syns"),
-                        nextOp2
-                    )
-                )
-            );
+// function synFloodSonata(): (nextOp: Operator) => Operator[] {
+//     return (nextOp) => {
+//         const syns = (nextOp2: Operator) =>
+//             chain(
+//                 epoch(1.0, "eid"),
+//                 chain(
+//                     filter(tup => lookupInt("ipv4.proto", tup) === 6 && lookupInt("l4.flags", tup) === 2),
+//                     chain(
+//                         groupby(filterGroups(["ipv4.dst"]), counter, "syns"),
+//                         nextOp2
+//                     )
+//                 )
+//             );
 
-        const synacks = (nextOp2: Operator) =>
-            chain(
-                epoch(1.0, "eid"),
-                chain(
-                    filter(tup => lookupInt("ipv4.proto", tup) === 6 && lookupInt("l4.flags", tup) === 18),
-                    chain(
-                        groupby(filterGroups(["ipv4.src"]), counter, "synacks"),
-                        nextOp2
-                    )
-                )
-            );
+//         const synacks = (nextOp2: Operator) =>
+//             chain(
+//                 epoch(1.0, "eid"),
+//                 chain(
+//                     filter(tup => lookupInt("ipv4.proto", tup) === 6 && lookupInt("l4.flags", tup) === 18),
+//                     chain(
+//                         groupby(filterGroups(["ipv4.src"]), counter, "synacks"),
+//                         nextOp2
+//                     )
+//                 )
+//             );
 
-        const acks = (nextOp2: Operator) =>
-            chain(
-                epoch(1.0, "eid"),
-                chain(
-                    filter(tup => lookupInt("ipv4.proto", tup) === 6 && lookupInt("l4.flags", tup) === 16),
-                    chain(
-                        groupby(filterGroups(["ipv4.dst"]), counter, "acks"),
-                        nextOp2
-                    )
-                )
-            );
+//         const acks = (nextOp2: Operator) =>
+//             chain(
+//                 epoch(1.0, "eid"),
+//                 chain(
+//                     filter(tup => lookupInt("ipv4.proto", tup) === 6 && lookupInt("l4.flags", tup) === 16),
+//                     chain(
+//                         groupby(filterGroups(["ipv4.dst"]), counter, "acks"),
+//                         nextOp2
+//                     )
+//                 )
+//             );
 
-        const [join1, join2] = join(
-            tup => [filterGroups(["host"])(tup), filterGroups(["syns+synacks"])(tup)],
-            tup => [renameFilteredKeys([["ipv4.dst", "host"]], tup), filterGroups(["acks"])(tup)]
-        )(
-            chain(
-                map(tup => {
-                    const synsSynacks = lookupInt("syns+synacks", tup);
-                    const acksVal = lookupInt("acks", tup);
-                    tup.set("syns+synacks-acks", { kind: "Int", value: synsSynacks - acksVal });
-                    return tup;
-                }),
-                filter(keyGeqInt("syns+synacks-acks", 3))
-            )(nextOp)
-        );
+//         const [join1, join2] = join(
+//             tup => [filterGroups(["host"])(tup), filterGroups(["syns+synacks"])(tup)],
+//             tup => [renameFilteredKeys([["ipv4.dst", "host"]], tup), filterGroups(["acks"])(tup)]
+//         )(
+//             chain(
+//                 map(tup => {
+//                     const synsSynacks = lookupInt("syns+synacks", tup);
+//                     const acksVal = lookupInt("acks", tup);
+//                     tup.set("syns+synacks-acks", { kind: "Int", value: synsSynacks - acksVal });
+//                     return tup;
+//                 }),
+//                 filter(keyGeqInt("syns+synacks-acks", 3))
+//             )(nextOp)
+//         );
 
-        const [join3, join4] = join(
-            tup => [renameFilteredKeys([["ipv4.dst", "host"]], tup), filterGroups(["syns"])(tup)],
-            tup => [renameFilteredKeys([["ipv4.src", "host"]], tup), filterGroups(["synacks"])(tup)]
-        )(join1);
+//         const [join3, join4] = join(
+//             tup => [renameFilteredKeys([["ipv4.dst", "host"]], tup), filterGroups(["syns"])(tup)],
+//             tup => [renameFilteredKeys([["ipv4.src", "host"]], tup), filterGroups(["synacks"])(tup)]
+//         )(join1);
 
-        return [
-            syns(join3),
-            synacks(join4),
-            acks(join2)
-        ];
-    };
-}
+//         return [
+//             syns(join3),
+//             synacks(join4),
+//             acks(join2)
+//         ];
+//     };
+// }
 
+// ===============================================
+// Example Query Setup
+// ===============================================
 
+const queries: Operator[] = [
+  chain(
+    ident(), 
+    dumpTuple()
+  )
+];
 
 // ===============================================
 // Entry Point Example
 // ===============================================
 
 function runQueries() {
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 5; i++) {
     const tup: Tuple = new Map([
       ["time", { kind: "Float", value: i * 1.0 }],
       ["eth.src", { kind: "MAC", value: new Uint8Array([0, 17, 34, 51, 68, 85]) }],
